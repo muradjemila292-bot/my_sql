@@ -17,9 +17,11 @@ const pool = mysql.createPool({
 });
 
 app.get("/books", (req, res) => {
-  const sql =
-    "SELECT b.book_id,b.title,b.genre,b.published_year,b.is_available,a.name AS author_name FROM books b INNER JOIN authors a ON b.author_id = a.author_id";
-  pool.query(sql, (err, result) => {
+  const { genre } = req.query;
+  const sql = `SELECT b.book_id,b.title,b.genre,b.published_year,b.is_available,a.name AS author_name FROM books b INNER JOIN authors a ON b.author_id = a.author_id ${
+    genre ? "WHERE b.genre =?" : ""
+  } `;
+  pool.query(sql, [genre], (err, result) => {
     if (err) {
       console.log(err.message);
       return res.status(500).send("Database query failed");
@@ -47,6 +49,13 @@ app.post("/books", (req, res) => {
   const { title, genre, published_year, is_available, author_id } = req.body;
   const sql =
     "INSERT INTO books (title, genre, published_year, is_available,author_id) VALUES (?,?,?,?,?)";
+  const currentYear = new Date().getFullYear();
+  if (!title || !genre || !published_year || !is_available || !author_id) {
+    return res.status(400).send("Missing required fields");
+  }
+  if (published_year > currentYear) {
+    return res.status(400).send("Published year cannot be in the future");
+  }
   pool.query(
     sql,
     [title, genre, published_year, is_available, author_id],
@@ -71,7 +80,7 @@ app.put("/books/:id", (req, res) => {
       return res.status(500).send("Database query failed");
     }
     if (result.length == 0) {
-      return res.status(404).send(`There is no book with id ${formatedId}`);
+      return res.status(404).send(`There is no book with id ${id}`);
     } else {
       const updateSql = "UPDATE books SET ? WHERE book_id = ?";
       pool.query(updateSql, [newInfo, id], (err, result) => {
@@ -94,10 +103,10 @@ app.delete("/books/:id", (req, res) => {
       return res.status(500).send("Database query failed");
     }
     if (result.length == 0) {
-      return res.status(404).send(`There is no book with id ${formatedId}`);
+      return res.status(404).send(`There is no book with id ${id}`);
     } else {
-      const updateSql = "DELETE FROM books WHERE book_id = ?";
-      pool.query(updateSql, [id], (err, result) => {
+      const deleteSql = "DELETE FROM books WHERE book_id = ?";
+      pool.query(deleteSql, [id], (err, result) => {
         if (err) {
           console.log(err.message);
           return res.status(500).send("Database query failed");
@@ -108,4 +117,25 @@ app.delete("/books/:id", (req, res) => {
   });
 });
 
+app.delete("/authors/:id", (req, res) => {
+  const { id } = req.params;
+  const sql = "UPDATE authors SET is_active = false WHERE author_id=?";
+  pool.query(sql, [id], (err, result) => {
+    if (err) {
+      console.log(err.message);
+      return res.status(500).send("Database query failed");
+    }
+    res.status(200).send("author soft deleted");
+  });
+});
+app.get("/authors", (req, res) => {
+  const sql = "SELECT * FROM authors WHERE is_active = true";
+  pool.query(sql, (err, result) => {
+    if (err) {
+      console.log(err.message);
+      return res.status(500).send("Database query failed");
+    }
+    res.status(200).json(result);
+  });
+});
 app.listen(PORT, () => console.log(`The server is running on port ${PORT}`));

@@ -30,5 +30,5 @@ INSERT INTO books (title, genre, published_year, is_available,author_id) VALUES(
 
 SELECT * FROM books;
 
-
+ALTER TABLE authors ADD COLUMN is_active BOOLEAN DEFAULT true
 
